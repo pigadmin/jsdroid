@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">彩虹糖</string>
+    <string name="access_desc">开启抖音辅助功能权限，可以避免录屏直播过程中麦克风与其他应用冲突导致的直播无声音。\n\n提示：打开辅助功能时，会收到系统行为的警示提醒。抖音不会进行侵害用户利益的行为，请放心开启</string>
+
+    <string name="desc_exit">再按一次退出</string>
+    <string name="log">日志</string>
+    <string name="close">关闭</string>
+    <string name="start">启动</string>
+    <string name="stop">停止</string>
+
+    <string name="log_service_start">无障碍服务已启动</string>
+    <string name="log_service_stop">无障碍服务已停止</string>
+    <string name="log_start">---启动(arg0)---</string>
+    <string name="log_task_strart">---开始运行---</string>
+    <string name="log_tasktx_strart">---稍后运行提现任务---</string>
+    <string name="log_task_stop">---正在停止---</string>
+    <string name="log_task_restrart">---重新运行---</string>
+    <string name="log_task_next">---即将运行下一轮(arg0)---</string>
+    <string name="log_tasklist_total">---任务总数---</string>
+    <string name="log_tasklist_empty">---已完成所有游戏任务！我要准备休眠了!---</string>
+    <string name="log_needgo_carsh">---已完成所有有任务！用户已勾选需要去提现---</string>
+    <string name="log_tasktxlist_empty">---已完成所有提现任务！我要准备休眠了!---</string>
+    <string name="log_no_tasklist">---暂无任务!---</string>
+    <string name="log_tx_task">¥¥¥提现任务¥¥¥---任务总数(arg0)---剩余(arg1)---当前App名称(arg2)---任务时长:默认时长</string>
+    <string name="log_game_task">$$$游戏任务$$$---任务总数(arg0)---剩余(arg1)---当前App名称(arg2)---任务时长:arg3分钟</string>
+    <string name="log_network_error">---网络异常了！稍后将重新运行当前任务---</string>
+    <string name="log_task_last">---最后一轮，不用往下执行了!---</string>
+    <string name="over">智能助手工作已结束</string>
+</resources>
