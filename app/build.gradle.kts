@@ -13,12 +13,16 @@ android {
 
     defaultConfig {
         buildConfigField("String", "BASE_URL",
-            "\"http://110.42.110.223:88/a11y/250913/\"")
-        applicationId = "com.jiuzhuan.jsdroid"
+        "\"http://192.168.1.6:8888/\"")
+        buildConfigField("int", "TYPE", "10")
+        buildConfigField("String", "WEB_API_URL", "\"http://110.42.110.223:1024/24k/v1/api\"")
+        buildConfigField("Boolean", "IS_REQUIRE_PACKNAME", "false")
+        applicationId = "com.jiuzhuan.jsdroidH"
+
         minSdk = 29
         targetSdk = 35
-        versionCode = 250913
-        versionName = "w250913"
+        versionCode = 260507
+        versionName = "w260507"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
