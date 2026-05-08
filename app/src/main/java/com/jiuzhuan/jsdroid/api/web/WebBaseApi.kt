@@ -8,10 +8,17 @@ import android.webkit.JavascriptInterface
 import com.jiuzhuan.jsdroid.BuildConfig
 import com.jiuzhuan.jsdroid.R
 import com.jiuzhuan.jsdroid.api.getApp
+import org.json.JSONObject
+import java.lang.reflect.Modifier
 import kotlin.system.exitProcess
 
 class WebBaseApi {
     private val TAG: String = javaClass.simpleName
+
+    @JavascriptInterface
+    fun getPackageName(): String {
+        return BuildConfig.APPLICATION_ID
+    }
 
     @JavascriptInterface
     fun getAppVersionCode(): Int {
@@ -26,6 +33,28 @@ class WebBaseApi {
     @JavascriptInterface
     fun getAppName(): String {
         return getApp().resources.getString(R.string.app_name)
+    }
+
+    @JavascriptInterface
+    fun getBuildConfig(): String {
+        return JSONObject().apply {
+            BuildConfig::class.java.fields
+                .filter { Modifier.isStatic(it.modifiers) && shouldExportBuildConfigField(it.name) }
+                .sortedBy { it.name }
+                .forEach { field ->
+                    put(field.name, field.get(null) ?: JSONObject.NULL)
+                }
+        }.toString()
+    }
+
+    /**
+     * 修复缺失的方法：过滤需要导出的BuildConfig字段
+     */
+    private fun shouldExportBuildConfigField(fieldName: String): Boolean {
+        // 过滤掉不需要暴露给JS的字段，按需调整
+        return !fieldName.startsWith("APPLICATION_ID") &&
+               !fieldName.startsWith("DEBUG") &&
+               !fieldName.startsWith("BUILD_TYPE")
     }
 
     @JavascriptInterface
@@ -46,8 +75,10 @@ class WebBaseApi {
         val apps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
         val packageList = arrayListOf<String>()
         for (app in apps) {
+            // 过滤系统应用
             if ((app.flags and ApplicationInfo.FLAG_SYSTEM) == 0) {
-                if (app.packageName != "com.jiuzhuan.k24" || app.packageName != "com.jiuzhuan.jsdroid") {
+                // 修复逻辑bug：|| 改为 &&，否则判断永远生效
+                if (app.packageName != "com.jiuzhuan.k24" && app.packageName != "com.jiuzhuan.jsdroid") {
                     packageList.add(app.packageName)
                 }
             }

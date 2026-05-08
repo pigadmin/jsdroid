@@ -19,21 +19,34 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
 class WebLogApi(browser: Browser) {
+    private companion object {
+        const val DAY_IN_MILLIS = 24L * 60L * 60L * 1000L
+    }
+
     val b = browser
+
+    private data class LogsPageResult(
+        val list: List<LogEntity>,
+        val page: Int,
+        val pageSize: Int,
+        val total: Int,
+        val pageCount: Int,
+        val error: String? = null,
+    )
 
     @JavascriptInterface
     fun d(message: String) {
-        Log.d("WebLogApi",message)
+        Log.d("WebLogApi", message)
     }
 
     @JavascriptInterface
     fun e(message: String) {
-        Log.e("WebLogApi",message)
+        Log.e("WebLogApi", message)
     }
 
     @JavascriptInterface
     fun v(message: String) {
-        Log.v("WebLogApi",message)
+        Log.v("WebLogApi", message)
     }
 
     @JavascriptInterface
@@ -50,24 +63,63 @@ class WebLogApi(browser: Browser) {
     }
 
     @JavascriptInterface
-    fun getLogs(day: Int, pageSize: Int = 20, page: Int = 1, callbackId: String) {
+    fun getLogs(startTime: Long, endTime: Long, pageSize: Int = 20, page: Int = 1, callbackId: String) {
+        queryLogs(startTime, endTime, pageSize, page, callbackId)
+    }
+
+    @JavascriptInterface
+    fun getLogsByDay(day: Int, pageSize: Int = 20, page: Int = 1, callbackId: String) {
+        val safeDay = day.coerceAtLeast(1)
+        val endTime = System.currentTimeMillis()
+        val startTime = endTime - safeDay * DAY_IN_MILLIS
+        queryLogs(startTime, endTime, pageSize, page, callbackId)
+    }
+
+    private fun queryLogs(
+        startTime: Long,
+        endTime: Long,
+        pageSize: Int,
+        page: Int,
+        callbackId: String,
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
+            val gson = Gson()
+            val safeStartTime = minOf(startTime, endTime).coerceAtLeast(0L)
+            val safeEndTime = maxOf(startTime, endTime).coerceAtLeast(safeStartTime)
+            val safePageSize = pageSize.coerceIn(1, 200)
+            val safePage = page.coerceAtLeast(1)
             try {
-                var start = System.currentTimeMillis() - day * 60 * 60 * 1000
-                var end = System.currentTimeMillis()
+                val offset = (safePage - 1) * safePageSize
+                val logDao = AppDatabase.getInstance().logDao()
+                val logs = logDao.getByTimeRange(
+                    safeStartTime,
+                    safeEndTime,
+                    limit = safePageSize,
+                    offset = offset,
+                )
+                val total = logDao.countByTimeRange(safeStartTime, safeEndTime)
+                val pageCount = if (total == 0) 0 else (total + safePageSize - 1) / safePageSize
+                val payload = LogsPageResult(
+                    list = logs,
+                    page = safePage,
+                    pageSize = safePageSize,
+                    total = total,
+                    pageCount = pageCount,
+                )
 
-                val limit = pageSize
-                val offset = page
-
-                val logs = AppDatabase.getInstance().logDao()
-                    .getByDate(start, end, limit = limit, offset = (offset - 1) * limit)
-
-                val json = Gson().toJson(logs)
-//                logd(json)
+                val json = gson.toJson(payload)
                 sendResultToJs(callbackId, json)
             } catch (e: Exception) {
                 showException(e)
-                sendResultToJs(callbackId, "{ error: '${e.message}' }")
+                val payload = LogsPageResult(
+                    list = emptyList(),
+                    page = safePage,
+                    pageSize = safePageSize,
+                    total = 0,
+                    pageCount = 0,
+                    error = e.message ?: "getLogs failed",
+                )
+                sendResultToJs(callbackId, gson.toJson(payload))
             }
         }
     }

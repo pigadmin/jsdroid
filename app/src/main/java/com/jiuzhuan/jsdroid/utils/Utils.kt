@@ -21,12 +21,14 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
-fun addLogs(message: String, showFloatToast: Boolean = false, level: String = level_nomal) {
-    CoroutineScope(Dispatchers.IO).launch {
-        val log = LogEntity(
-            timestamp = System.currentTimeMillis(), level = level, message = message
-        )
-        AppDatabase.getInstance().logDao().insert(log)
+fun addLogs(message: String, showFloatToast: Boolean = false, level: String = level_nomal, log: Boolean = true) {
+    if (log) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val log = LogEntity(
+                timestamp = System.currentTimeMillis(), level = level, message = message
+            )
+            AppDatabase.getInstance().logDao().insert(log)
+        }
     }
     if (showFloatToast) {
         EventBus.getDefault().post(MessageEvent(message))

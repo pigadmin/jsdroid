@@ -76,7 +76,7 @@ class Browser : WebView {
 
         setWebChromeClient(webChromeClient)
 
-        var url = mmkv.getString("BASE_URL", BuildConfig.BASE_URL)
+        var url = BuildConfig.BASE_URL
 //        if (BuildConfig.DEBUG) {
 //            url = "http://192.168.1.8:8888/a11y/20250407/"
 //            url = "http://192.168.1.8:8888/a11y/20250409/"
