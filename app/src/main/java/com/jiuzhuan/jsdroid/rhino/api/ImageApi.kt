@@ -12,12 +12,16 @@ import com.jiuzhuan.jsdroid.api.getApp
 import com.jiuzhuan.jsdroid.api.getMmkv
 import com.jiuzhuan.jsdroid.opencv.ImageMatcher.getImagePoints
 import com.jiuzhuan.jsdroid.opencv.ImageMatcher.templateMatch
+import com.jiuzhuan.jsdroid.opencv.ImageMatcher.templateMatchG
 import com.jiuzhuan.jsdroid.rhino.api.GlobalApi.sleep
 import com.jiuzhuan.jsdroid.rhino.helper.ImageHelper
 import com.jiuzhuan.jsdroid.rhino.helper.Screencap
 import org.opencv.core.Point
 import java.io.File
 import java.io.FileOutputStream
+import android.graphics.BitmapFactory
+import org.json.JSONArray
+import org.json.JSONObject
 
 @SuppressLint("StaticFieldLeak")
 object ImageApi {
@@ -93,6 +97,34 @@ object ImageApi {
             return match
         }
     }
+
+    /**
+ * 灰度图找图（单点），与 findImage 风格一致
+ */
+@JvmStatic
+@Synchronized
+fun findImageG(id: String, template: String, threshold: Double): Point? {
+    val newId = id.ifEmpty { "1" }
+    logd("findImageG: id=$newId, template=$template, threshold=$threshold")
+    val resUrl = mMmkv.getString("resUrl", "")
+    val imgUrl = resUrl + template
+
+    val tempFile = template.replace("/", "_")
+    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+    val imgFile = File(tempPath)
+
+    if (imgFile.exists()) {
+        val match = templateMatchG(newId, imgFile.absolutePath, threshold) ?: return null
+        logd("离线灰度找图, 模版: $newId, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match")
+        return match
+    } else {
+        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
+        logd("file=${file.absolutePath}")
+        val match = templateMatchG(newId, file.absolutePath, threshold) ?: return null
+        logd("在线灰度找图, 模版: $newId, 小图: ${file.absolutePath}, 匹配度: $threshold, 返回: $match")
+        return match
+    }
+}
 
 
     @JvmStatic
@@ -199,4 +231,117 @@ object ImageApi {
         }
         return true
     }
+
+   @JvmStatic
+@Synchronized
+fun findImageCorners(id: String, template: String, threshold: Double): String? {
+    val newId = id.ifEmpty { "1" }
+    logd("findImageCorners: id=$newId, template=$template, threshold=$threshold")
+    val resUrl = mMmkv.getString("resUrl", "")
+    val imgUrl = resUrl + template
+
+    val tempFile = template.replace("/", "_")
+    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+    val imgFile = File(tempPath)
+
+    // 获取模板路径（优先本地缓存，否则下载）
+    val templatePath = if (imgFile.exists()) {
+        imgFile.absolutePath
+    } else {
+        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
+        logd("file=${file.absolutePath}")
+        file.absolutePath
+    }
+
+    // 使用彩色模板匹配得到中心点
+    val center = templateMatch(newId, templatePath, threshold) ?: return null
+
+    // 读取模板尺寸
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(templatePath, options)
+    val tplW = options.outWidth.toDouble()
+    val tplH = options.outHeight.toDouble()
+    if (tplW <= 0 || tplH <= 0) {
+        logd("模板尺寸获取失败")
+        return null
+    }
+
+    // 计算四个角点
+    val corners = listOf(
+        Point(center.x - tplW / 2, center.y - tplH / 2), // 左上
+        Point(center.x + tplW / 2, center.y - tplH / 2), // 右上
+        Point(center.x + tplW / 2, center.y + tplH / 2), // 右下
+        Point(center.x - tplW / 2, center.y + tplH / 2)  // 左下
+    )
+
+    // 封装为 JSON
+    val jsonArray = JSONArray()
+    for (p in corners) {
+        jsonArray.put(JSONObject().apply {
+            put("x", p.x)
+            put("y", p.y)
+        })
+    }
+    val resultJson = jsonArray.toString()
+    logd("findImageCorners 结果: $resultJson")
+    return resultJson
+}
+
+/**
+ * 灰度图四角坐标（单目标），返回标准 JSON 字符串
+ */
+@JvmStatic
+@Synchronized
+fun findImageCornersG(id: String, template: String, threshold: Double): String? {
+    val newId = id.ifEmpty { "1" }
+    logd("findImageCornersG: id=$newId, template=$template, threshold=$threshold")
+    val resUrl = mMmkv.getString("resUrl", "")
+    val imgUrl = resUrl + template
+
+    val tempFile = template.replace("/", "_")
+    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+    val imgFile = File(tempPath)
+
+    // 获取模板路径
+    val templatePath = if (imgFile.exists()) {
+        imgFile.absolutePath
+    } else {
+        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
+        logd("file=${file.absolutePath}")
+        file.absolutePath
+    }
+
+    // 灰度模板匹配得到中心点
+    val center = templateMatchG(newId, templatePath, threshold) ?: return null
+
+    // 获取模板尺寸
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(templatePath, options)
+    val tplW = options.outWidth.toDouble()
+    val tplH = options.outHeight.toDouble()
+    if (tplW <= 0 || tplH <= 0) {
+        logd("模板尺寸获取失败")
+        return null
+    }
+
+    // 计算四个角点
+    val corners = listOf(
+        Point(center.x - tplW / 2, center.y - tplH / 2),
+        Point(center.x + tplW / 2, center.y - tplH / 2),
+        Point(center.x + tplW / 2, center.y + tplH / 2),
+        Point(center.x - tplW / 2, center.y + tplH / 2)
+    )
+
+    // 封装 JSON
+    val jsonArray = JSONArray()
+    for (p in corners) {
+        jsonArray.put(JSONObject().apply {
+            put("x", p.x)
+            put("y", p.y)
+        })
+    }
+    val resultJson = jsonArray.toString()
+    logd("findImageCornersG 结果: $resultJson")
+    return resultJson
+}
 }
