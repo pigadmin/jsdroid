@@ -25,6 +25,14 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 
 object GlobalApi {
+
+    private fun logJsApiTouch(message: String) {
+        val logMessage = "jsapi-click $message"
+        Log.e("@@@", logMessage)
+        LogApi.addLog(logMessage, false)
+    }
+
+    
     @JvmStatic
     fun log(message: String) {
         Log.e("GlobalApi",message)
@@ -70,6 +78,7 @@ object GlobalApi {
 
     @JvmStatic
     fun click(x: Int, y: Int) {
+        logJsApiTouch("action=click x=$x y=$y")
         handleClick(x, y, 150)
     }
 
@@ -90,6 +99,7 @@ object GlobalApi {
 
     @JvmStatic
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int) {
+        logJsApiTouch("action=swipe x1=$x1 y1=$y1 x2=$x2 y2=$y2 duration=$duration")
         handleSwipe(x1, y1, x2, y2, duration)
     }
 

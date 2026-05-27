@@ -12,9 +12,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        buildConfigField("String", "BASE_URL",
-        
-        "\"http://192.168.1.6:8888/\"")
+        buildConfigField("String", "BASE_URL", "\"http://115.29.179.84:7070/\"")
         buildConfigField("int", "TYPE", "10")
         buildConfigField("String", "WEB_API_URL", "\"http://110.42.110.223:1024/24k/v1/api\"")
         buildConfigField("Boolean", "IS_REQUIRE_PACKNAME", "false")
@@ -32,22 +30,35 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../md/signing/zzp.jks")
+            storePassword = "190731"
+            keyAlias = "zzp"
+            keyPassword = "190731"
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
+            // ✅ 已启用签名
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -104,11 +115,6 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.room:room-rxjava2:2.6.1")
-    // implementation("androidx.room:room-rxjava3:2.6.1")
-    // implementation("androidx.room:room-guava:2.6.1")
-    // implementation("androidx.room:room-paging:2.6.1")
-
     annotationProcessor("androidx.room:room-compiler:2.6.1")
-    // testImplementation("androidx.room:room-testing:2.6.1")
     implementation("org.greenrobot:eventbus:3.3.1")
 }
