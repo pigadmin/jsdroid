@@ -120,6 +120,93 @@ fun execCmd(
     return successMsg.toString()
 }
 
+fun handlePackage(): String {
+    return execCmd("dumpsys window | grep -E 'mFocusedApp='")
+}
+
+internal data class PackageClassCandidate(
+    val packageName: String,
+    val className: String,
+    val rawLine: String,
+    val sourceHint: String = ""
+)
+
+private val packageClassPattern = """([A-Za-z0-9_.$]+)/([A-Za-z0-9_.$]+)""".toRegex()
+private val likelyForegroundNoisePackages = setOf(
+    "android",
+    "com.android.systemui",
+    "com.android.launcher3",
+    "com.google.android.permissioncontroller",
+    "com.android.permissioncontroller",
+    "com.miui.home",
+    "com.miui.securitycenter",
+    "com.miui.systemui"
+)
+
+internal fun extractPackageAndClassCandidates(
+    input: String,
+    sourceHint: String = ""
+): List<PackageClassCandidate> {
+    if (input.isBlank()) {
+        return emptyList()
+    }
+    return input.replace("@@", "\n")
+        .lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            packageClassPattern.find(line)?.let { matchResult ->
+                PackageClassCandidate(
+                    packageName = matchResult.groupValues[1],
+                    className = matchResult.groupValues[2],
+                    rawLine = line,
+                    sourceHint = sourceHint
+                )
+            }
+        }
+        .toList()
+}
+
+private fun scorePackageClassCandidate(candidate: PackageClassCandidate): Int {
+    val raw = "${candidate.sourceHint} ${candidate.rawLine}".lowercase()
+    var score = 0
+    when {
+        raw.contains("topresumedactivity") -> score += 120
+        raw.contains("mresumedactivity") -> score += 110
+        raw.contains("top-activity") -> score += 100
+        raw.contains("mcurrentfocus=window") -> score += 90
+        raw.contains("mfocusedwindow=window") -> score += 80
+        raw.contains("mfocusedapp=activityrecord") -> score += 70
+    }
+    if (candidate.packageName in likelyForegroundNoisePackages) {
+        score -= 40
+    }
+    if (candidate.rawLine.contains("Splash Screen", ignoreCase = true)) {
+        score -= 5
+    }
+    if (candidate.className.startsWith(".")) {
+        score += 10
+    }
+    return score
+}
+
+internal fun selectBestPackageAndClassCandidate(
+    candidates: Collection<PackageClassCandidate>
+): PackageClassCandidate? {
+    return candidates.maxByOrNull(::scorePackageClassCandidate)
+}
+
+fun extractPackageAndClass(input: String): Pair<String, String>? {
+    val bestCandidate = selectBestPackageAndClassCandidate(
+        extractPackageAndClassCandidates(input)
+    ) ?: return null
+    return bestCandidate.packageName to bestCandidate.className
+}
+
+fun getFocusedAppPackageAndClass(): Pair<String, String>? {
+    return extractPackageAndClass(handlePackage())
+}
+
 fun Image.toBitmap(): Bitmap {
     val planes = this.planes
     val buffer = planes[0].buffer

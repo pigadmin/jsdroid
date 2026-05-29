@@ -12,6 +12,7 @@ import com.jiuzhuan.jsdroid.events.ChangeFloatEvent
 import com.jiuzhuan.jsdroid.events.TaskEvent
 import com.jiuzhuan.jsdroid.events.TaskEvent.Companion.START_TASK
 import com.jiuzhuan.jsdroid.events.TaskEvent.Companion.STOP_TASK
+import com.jiuzhuan.jsdroid.rhino.api.GlobalApi
 import com.jiuzhuan.jsdroid.service.FloatLogoService
 import com.jiuzhuan.jsdroid.utils.showException
 import com.ss.android.ugc.aweme.live.livehostimpl.AudioAccessibilityService
@@ -44,6 +45,16 @@ class WebJsApi {
     @JavascriptInterface
     fun stop() {
         EventBus.getDefault().post(TaskEvent(STOP_TASK))
+    }
+
+    @JavascriptInterface
+    fun getForegroundDetectionSnapshot(): String {
+        return GlobalApi.getForegroundDetectionSnapshot()
+    }
+
+    @JavascriptInterface
+    fun logForegroundDetectionSnapshot(): String {
+        return GlobalApi.logForegroundDetectionSnapshot()
     }
 
     @JavascriptInterface
