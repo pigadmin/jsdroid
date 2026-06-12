@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">彩虹糖w</string>
+    <string name="app_name">彩虹糖</string>
     <string name="access_desc">开启抖音辅助功能权限，可以避免录屏直播过程中麦克风与其他应用冲突导致的直播无声音。\n\n提示：打开辅助功能时，会收到系统行为的警示提醒。抖音不会进行侵害用户利益的行为，请放心开启</string>
 
     <string name="desc_exit">再按一次退出</string>

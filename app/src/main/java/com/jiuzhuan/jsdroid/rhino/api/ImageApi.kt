@@ -34,179 +34,336 @@ object ImageApi {
         }
     }
 
+    // 统一的错误日志：输出到 logcat 和用户面板
+    private fun logError(message: String) {
+        Log.e("ImageApi", message)
+        LogApi.addLog(message, false, "error", true)
+    }
+
     @JvmStatic
     @Synchronized
-    fun takeCapture(id: String, area: String): String {
-        val newId = id.ifEmpty { "1" }
-        logd("id=$newId, area=$area")
-        val imgPath = "${mApp.cacheDir.absolutePath}/$newId.jpg"
-        var image: Image? = null
-        var bitmap: Bitmap? = null
-        try {
-            for (i in 1..10) {
-                image = Screencap.getImageReader().acquireLatestImage()
-                if (image != null) { // 条件成立时退出循环
-                    break
+    fun takeCapture(id: String, area: String): String? {
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("takeCapture: id=$newId, area=$area")
+            val imgPath = "${mApp.cacheDir.absolutePath}/$newId.jpg"
+            var image: Image? = null
+            var bitmap: Bitmap? = null
+            try {
+                for (i in 1..10) {
+                    image = Screencap.getImageReader().acquireLatestImage()
+                    if (image != null) break
+                    sleep(16)
                 }
-                sleep(16)
+                bitmap = safeCrop(image?.toBitmap(), area)
+                if (bitmap == null) {
+                    logError("截图或裁剪失败，bitmap 为 null")
+                    return null
+                }
+                if (bitmap.save(imgPath, 50)) {
+                    logd("保存成功 $imgPath")
+                } else {
+                    logError("截图保存失败: $imgPath")
+                    return null
+                }
+            } finally {
+                image?.close()
+                bitmap?.recycle()
             }
-            bitmap = safeCrop(image?.toBitmap(), area)
-
-            if (bitmap!!.save(imgPath, 50)) {
-                logd("保存成功${imgPath}")
-            } else {
-                logd("保存失败")
-            }
-
-        } finally {
-            image?.close()
-            bitmap?.recycle()
+            imgPath
+        } catch (e: Exception) {
+            logError("takeCapture 异常: ${e.message}")
+            e.printStackTrace()
+            null
         }
-        return imgPath
     }
 
     @JvmStatic
     @Synchronized
     fun findImage(id: String, template: String, threshold: Double): Point? {
-        val newId = id.ifEmpty { "1" }
-        logd("id=$newId, template=$template, threshold=$threshold")
-        val resUrl = mMmkv.getString("resUrl", "")
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("findImage: id=$newId, template=$template, threshold=$threshold")
+            val resUrl = mMmkv.getString("resUrl", "")
+            val imgUrl = resUrl + template
+            val tempFile = template.replace("/", "_")
+            val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            val imgFile = File(tempPath)
 
-        val imgUrl = resUrl + template
+            val templatePath = if (imgFile.exists()) {
+                imgFile.absolutePath
+            } else {
+                val file = ImageHelper.download(imgUrl, tempPath, 60)
+                if (file == null) {
+                    logError("图片下载失败(可能404): $imgUrl")
+                    return null
+                }
+                if (!file.exists()) {
+                    logError("下载后的文件不存在: ${file.absolutePath}")
+                    return null
+                }
+                logd("下载成功 file=${file.absolutePath}")
+                file.absolutePath
+            }
 
-        val tempFile = template.replace("/", "_")
-        val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            if (!File(templatePath).exists()) {
+                logError("模板文件不存在(404): $templatePath")
+                return null
+            }
 
-        val imgFile = File(tempPath)
-        if (imgFile.exists()) {
-            val match = templateMatch(newId, imgFile.absolutePath, threshold) ?: return null
-            logd(
-                "离线找图, 模版: $id, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match"
-            )
-            return match
-        } else {
-            val file = ImageHelper.download(imgUrl, tempPath, 60)
-            logd("file=${file.absolutePath}")
-
-            val match = templateMatch(
-                newId, file.absolutePath, threshold
-            ) ?: return null
-            logd(
-                "在线找图, 模版: $newId, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match"
-            )
-            return match
+            val match = templateMatch(newId, templatePath, threshold) ?: return null
+            logd("离线/在线找图, 模版: $newId, 小图: $templatePath, 匹配度: $threshold, 返回: $match")
+            match
+        } catch (e: Exception) {
+            logError("findImage 异常: ${e.message}")
+            e.printStackTrace()
+            null
         }
     }
 
-    /**
- * 灰度图找图（单点），与 findImage 风格一致
- */
-@JvmStatic
-@Synchronized
-fun findImageG(id: String, template: String, threshold: Double): Point? {
-    val newId = id.ifEmpty { "1" }
-    logd("findImageG: id=$newId, template=$template, threshold=$threshold")
-    val resUrl = mMmkv.getString("resUrl", "")
-    val imgUrl = resUrl + template
+    @JvmStatic
+    @Synchronized
+    fun findImageG(id: String, template: String, threshold: Double): Point? {
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("findImageG: id=$newId, template=$template, threshold=$threshold")
+            val resUrl = mMmkv.getString("resUrl", "")
+            val imgUrl = resUrl + template
+            val tempFile = template.replace("/", "_")
+            val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            val imgFile = File(tempPath)
 
-    val tempFile = template.replace("/", "_")
-    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
-    val imgFile = File(tempPath)
+            val templatePath = if (imgFile.exists()) {
+                imgFile.absolutePath
+            } else {
+                val file = ImageHelper.download(imgUrl, tempPath, 60)
+                if (file == null) {
+                    logError("图片下载失败(可能404): $imgUrl")
+                    return null
+                }
+                if (!file.exists()) {
+                    logError("下载后的文件不存在: ${file.absolutePath}")
+                    return null
+                }
+                logd("下载成功 file=${file.absolutePath}")
+                file.absolutePath
+            }
 
-    if (imgFile.exists()) {
-        val match = templateMatchG(newId, imgFile.absolutePath, threshold) ?: return null
-        logd("离线灰度找图, 模版: $newId, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match")
-        return match
-    } else {
-        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
-        logd("file=${file.absolutePath}")
-        val match = templateMatchG(newId, file.absolutePath, threshold) ?: return null
-        logd("在线灰度找图, 模版: $newId, 小图: ${file.absolutePath}, 匹配度: $threshold, 返回: $match")
-        return match
+            if (!File(templatePath).exists()) {
+                logError("模板文件不存在(404): $templatePath")
+                return null
+            }
+
+            val match = templateMatchG(newId, templatePath, threshold) ?: return null
+            logd("离线/在线灰度找图, 模版: $newId, 小图: $templatePath, 匹配度: $threshold, 返回: $match")
+            match
+        } catch (e: Exception) {
+            logError("findImageG 异常: ${e.message}")
+            e.printStackTrace()
+            null
+        }
     }
-}
-
 
     @JvmStatic
     @Synchronized
     fun findImages(
         id: String, template: String, threshold: Double, maxMatches: Int
     ): List<Point>? {
-        val newId = id.ifEmpty { "1" }
-        logd("id=$newId, template=$template, threshold=$threshold")
-        val resUrl = mMmkv.getString("resUrl", "")
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("findImages: id=$newId, template=$template, threshold=$threshold")
+            val resUrl = mMmkv.getString("resUrl", "")
+            val imgUrl = resUrl + template
+            val tempFile = template.replace("/", "_")
+            val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            val imgFile = File(tempPath)
 
-        val imgUrl = resUrl + template
+            val templatePath = if (imgFile.exists()) {
+                imgFile.absolutePath
+            } else {
+                val file = ImageHelper.download(imgUrl, tempPath, 60)
+                if (file == null) {
+                    logError("图片下载失败(可能404): $imgUrl")
+                    return null
+                }
+                if (!file.exists()) {
+                    logError("下载后的文件不存在: ${file.absolutePath}")
+                    return null
+                }
+                logd("下载成功 file=${file.absolutePath}")
+                file.absolutePath
+            }
 
-        val tempFile = template.replace("/", "_")
-        val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            if (!File(templatePath).exists()) {
+                logError("模板文件不存在(404): $templatePath")
+                return null
+            }
 
-        val imgFile = File(tempPath)
-
-        if (imgFile.exists()) {
-            val match = getImagePoints(
-                newId, imgFile.absolutePath, threshold, maxMatches, 10
-            )
-            logd(
-                "离线找图, 模版: $newId, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match"
-            )
-            return match
-        } else {
-            val file = ImageHelper.download(imgUrl, tempPath, 60)
-            logd("file=${file.absolutePath}")
-            val match = getImagePoints(
-                newId, imgFile.absolutePath, threshold, maxMatches, 10
-            )
-            logd(
-                "在线找图, 模版: $newId, 小图: ${imgFile.absolutePath}, 匹配度: $threshold, 返回: $match"
-            )
-            return match
+            val match = getImagePoints(newId, templatePath, threshold, maxMatches, 10)
+            logd("离线/在线多目标找图, 模版: $newId, 小图: $templatePath, 匹配度: $threshold, 返回: $match")
+            match
+        } catch (e: Exception) {
+            logError("findImages 异常: ${e.message}")
+            e.printStackTrace()
+            null
         }
     }
+
+    @JvmStatic
+    @Synchronized
+    fun findImageCorners(id: String, template: String, threshold: Double): String? {
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("findImageCorners: id=$newId, template=$template, threshold=$threshold")
+            val resUrl = mMmkv.getString("resUrl", "")
+            val imgUrl = resUrl + template
+            val tempFile = template.replace("/", "_")
+            val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            val imgFile = File(tempPath)
+
+            val templatePath = if (imgFile.exists()) {
+                imgFile.absolutePath
+            } else {
+                val file = ImageHelper.download(imgUrl, tempPath, 60)
+                if (file == null) {
+                    logError("图片下载失败(可能404): $imgUrl")
+                    return null
+                }
+                if (!file.exists()) {
+                    logError("下载后的文件不存在: ${file.absolutePath}")
+                    return null
+                }
+                logd("下载成功 file=${file.absolutePath}")
+                file.absolutePath
+            }
+
+            if (!File(templatePath).exists()) {
+                logError("模板文件不存在(404): $templatePath")
+                return null
+            }
+
+            val center = templateMatch(newId, templatePath, threshold) ?: return null
+
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(templatePath, options)
+            val tplW = options.outWidth.toDouble()
+            val tplH = options.outHeight.toDouble()
+            if (tplW <= 0 || tplH <= 0) {
+                logError("模板尺寸获取失败: $templatePath")
+                return null
+            }
+
+            val corners = listOf(
+                Point(center.x - tplW / 2, center.y - tplH / 2),
+                Point(center.x + tplW / 2, center.y - tplH / 2),
+                Point(center.x + tplW / 2, center.y + tplH / 2),
+                Point(center.x - tplW / 2, center.y + tplH / 2)
+            )
+
+            val jsonArray = JSONArray()
+            for (p in corners) {
+                jsonArray.put(JSONObject().apply {
+                    put("x", p.x)
+                    put("y", p.y)
+                })
+            }
+            val resultJson = jsonArray.toString()
+            logd("findImageCorners 结果: $resultJson")
+            resultJson
+        } catch (e: Exception) {
+            logError("findImageCorners 异常: ${e.message}")
+            e.printStackTrace()
+            null
+        }
+    }
+
+    @JvmStatic
+    @Synchronized
+    fun findImageCornersG(id: String, template: String, threshold: Double): String? {
+        return try {
+            val newId = id.ifEmpty { "1" }
+            logd("findImageCornersG: id=$newId, template=$template, threshold=$threshold")
+            val resUrl = mMmkv.getString("resUrl", "")
+            val imgUrl = resUrl + template
+            val tempFile = template.replace("/", "_")
+            val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
+            val imgFile = File(tempPath)
+
+            val templatePath = if (imgFile.exists()) {
+                imgFile.absolutePath
+            } else {
+                val file = ImageHelper.download(imgUrl, tempPath, 60)
+                if (file == null) {
+                    logError("图片下载失败(可能404): $imgUrl")
+                    return null
+                }
+                if (!file.exists()) {
+                    logError("下载后的文件不存在: ${file.absolutePath}")
+                    return null
+                }
+                logd("下载成功 file=${file.absolutePath}")
+                file.absolutePath
+            }
+
+            if (!File(templatePath).exists()) {
+                logError("模板文件不存在(404): $templatePath")
+                return null
+            }
+
+            val center = templateMatchG(newId, templatePath, threshold) ?: return null
+
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(templatePath, options)
+            val tplW = options.outWidth.toDouble()
+            val tplH = options.outHeight.toDouble()
+            if (tplW <= 0 || tplH <= 0) {
+                logError("模板尺寸获取失败: $templatePath")
+                return null
+            }
+
+            val corners = listOf(
+                Point(center.x - tplW / 2, center.y - tplH / 2),
+                Point(center.x + tplW / 2, center.y - tplH / 2),
+                Point(center.x + tplW / 2, center.y + tplH / 2),
+                Point(center.x - tplW / 2, center.y + tplH / 2)
+            )
+
+            val jsonArray = JSONArray()
+            for (p in corners) {
+                jsonArray.put(JSONObject().apply {
+                    put("x", p.x)
+                    put("y", p.y)
+                })
+            }
+            val resultJson = jsonArray.toString()
+            logd("findImageCornersG 结果: $resultJson")
+            resultJson
+        } catch (e: Exception) {
+            logError("findImageCornersG 异常: ${e.message}")
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // ---------- 内部工具方法 ----------
 
     private fun safeCrop(bitmap: Bitmap?, area: String): Bitmap? {
         if (area.isNotEmpty()) {
             val parts = area.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            // 参数校验
             val x = parts[0].toDouble().toInt()
             val y = parts[1].toDouble().toInt()
             var width = parts[2].toDouble().toInt()
             var height = parts[3].toDouble().toInt()
             if (bitmap == null || width <= 0 || height <= 0) return null
-            // 获取 Bitmap 尺寸
             val bitmapWidth = bitmap.width
             val bitmapHeight = bitmap.height
-            // 调整 width/height 不超过剩余区域
-            if (x + width > bitmapWidth) {
-                width = bitmapWidth - x
-            }
-            if (y + height > bitmapHeight) {
-                height = bitmapWidth - y
-            }
-            // 二次校验（避免调整后仍不合法）
+            if (x + width > bitmapWidth) width = bitmapWidth - x
+            if (y + height > bitmapHeight) height = bitmapHeight - y
             if (width <= 0 || height <= 0) return null
-            // 执行裁剪
             return Bitmap.createBitmap(bitmap, x, y, width, height)
         }
         return bitmap
     }
-
-//    private fun getArea(area: String): Rect? {
-//        if (area.isNotEmpty()) {
-//            val parts = area.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-//            if (parts.size == 4) {
-//                val rect = Rect()
-//                rect.left = parts[0].toDouble().toInt()
-//                rect.top = parts[1].toDouble().toInt()
-//                rect.right = rect.left + parts[2].toDouble().toInt()
-//                rect.bottom = rect.top + parts[3].toDouble().toInt()
-//                if (rect.bottom > rect.top && rect.bottom > 0 && rect.right > rect.left && rect.right > 0) {
-//                    return rect
-//                }
-//            }
-//        }
-//        return null
-//    }
 
     private fun Image.toBitmap(): Bitmap {
         val buffer = planes[0].buffer
@@ -219,129 +376,17 @@ fun findImageG(id: String, template: String, threshold: Double): Point? {
         return bitmap
     }
 
+    // 注意：此处 save 扩展函数为 public，方便外部调用
     fun Bitmap.save(path: String, quality: Int): Boolean {
-        try {
-            val fos = FileOutputStream(path)
-            compress(Bitmap.CompressFormat.JPEG, quality, fos)
-            fos.flush()
-            fos.close()
-        } catch (ignored: Exception) {
-            ignored.printStackTrace()
-            return false
+        return try {
+            FileOutputStream(path).use { fos ->
+                compress(Bitmap.CompressFormat.JPEG, quality, fos)
+            }
+            true
+        } catch (e: Exception) {
+            logError("Bitmap 保存失败: ${e.message}")
+            e.printStackTrace()
+            false
         }
-        return true
     }
-
-   @JvmStatic
-@Synchronized
-fun findImageCorners(id: String, template: String, threshold: Double): String? {
-    val newId = id.ifEmpty { "1" }
-    logd("findImageCorners: id=$newId, template=$template, threshold=$threshold")
-    val resUrl = mMmkv.getString("resUrl", "")
-    val imgUrl = resUrl + template
-
-    val tempFile = template.replace("/", "_")
-    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
-    val imgFile = File(tempPath)
-
-    // 获取模板路径（优先本地缓存，否则下载）
-    val templatePath = if (imgFile.exists()) {
-        imgFile.absolutePath
-    } else {
-        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
-        logd("file=${file.absolutePath}")
-        file.absolutePath
-    }
-
-    // 使用彩色模板匹配得到中心点
-    val center = templateMatch(newId, templatePath, threshold) ?: return null
-
-    // 读取模板尺寸
-    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(templatePath, options)
-    val tplW = options.outWidth.toDouble()
-    val tplH = options.outHeight.toDouble()
-    if (tplW <= 0 || tplH <= 0) {
-        logd("模板尺寸获取失败")
-        return null
-    }
-
-    // 计算四个角点
-    val corners = listOf(
-        Point(center.x - tplW / 2, center.y - tplH / 2), // 左上
-        Point(center.x + tplW / 2, center.y - tplH / 2), // 右上
-        Point(center.x + tplW / 2, center.y + tplH / 2), // 右下
-        Point(center.x - tplW / 2, center.y + tplH / 2)  // 左下
-    )
-
-    // 封装为 JSON
-    val jsonArray = JSONArray()
-    for (p in corners) {
-        jsonArray.put(JSONObject().apply {
-            put("x", p.x)
-            put("y", p.y)
-        })
-    }
-    val resultJson = jsonArray.toString()
-    logd("findImageCorners 结果: $resultJson")
-    return resultJson
-}
-
-/**
- * 灰度图四角坐标（单目标），返回标准 JSON 字符串
- */
-@JvmStatic
-@Synchronized
-fun findImageCornersG(id: String, template: String, threshold: Double): String? {
-    val newId = id.ifEmpty { "1" }
-    logd("findImageCornersG: id=$newId, template=$template, threshold=$threshold")
-    val resUrl = mMmkv.getString("resUrl", "")
-    val imgUrl = resUrl + template
-
-    val tempFile = template.replace("/", "_")
-    val tempPath = "${mApp.cacheDir.absolutePath}/$tempFile"
-    val imgFile = File(tempPath)
-
-    // 获取模板路径
-    val templatePath = if (imgFile.exists()) {
-        imgFile.absolutePath
-    } else {
-        val file = ImageHelper.download(imgUrl, tempPath, 60) ?: return null
-        logd("file=${file.absolutePath}")
-        file.absolutePath
-    }
-
-    // 灰度模板匹配得到中心点
-    val center = templateMatchG(newId, templatePath, threshold) ?: return null
-
-    // 获取模板尺寸
-    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(templatePath, options)
-    val tplW = options.outWidth.toDouble()
-    val tplH = options.outHeight.toDouble()
-    if (tplW <= 0 || tplH <= 0) {
-        logd("模板尺寸获取失败")
-        return null
-    }
-
-    // 计算四个角点
-    val corners = listOf(
-        Point(center.x - tplW / 2, center.y - tplH / 2),
-        Point(center.x + tplW / 2, center.y - tplH / 2),
-        Point(center.x + tplW / 2, center.y + tplH / 2),
-        Point(center.x - tplW / 2, center.y + tplH / 2)
-    )
-
-    // 封装 JSON
-    val jsonArray = JSONArray()
-    for (p in corners) {
-        jsonArray.put(JSONObject().apply {
-            put("x", p.x)
-            put("y", p.y)
-        })
-    }
-    val resultJson = jsonArray.toString()
-    logd("findImageCornersG 结果: $resultJson")
-    return resultJson
-}
 }
