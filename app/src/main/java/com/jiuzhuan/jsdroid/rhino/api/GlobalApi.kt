@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.jiuzhuan.jsdroid.BuildConfig
 import com.jiuzhuan.jsdroid.api.getApp
+import com.jiuzhuan.jsdroid.api.getMmkv
 import com.jiuzhuan.jsdroid.base.activity
 import com.jiuzhuan.jsdroid.events.ChangeFloatEvent
 import com.jiuzhuan.jsdroid.events.TaskEvent
@@ -491,5 +492,17 @@ object GlobalApi {
     @JvmStatic
     fun changeFloat(position: String) {
         EventBus.getDefault().post(ChangeFloatEvent(position))
+    }
+
+    /**
+    * 获取当前悬浮窗位置 (x,y)
+    * @return 格式为 "x,y" 的字符串，例如 "120,350"
+    */
+    @JvmStatic
+    fun getFloatPosition(): String {
+        val mmkv = getMmkv()
+        val x = mmkv.getInt("startX", 0)
+        val y = mmkv.getInt("startY", 300)
+        return "$x,$y"
     }
 }

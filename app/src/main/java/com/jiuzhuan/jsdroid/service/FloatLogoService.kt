@@ -123,8 +123,8 @@ class FloatLogoService : Service(), View.OnClickListener, View.OnTouchListener {
     fun onChangeFloatEvent(event: ChangeFloatEvent) {
         try {
             val position = event.position.split(",")
-            logoParams.x = position[0].toInt()
-            logoParams.y = position[1].toInt()
+            logoParams.x = position[0].toInt().coerceAtLeast(0)
+            logoParams.y = position[1].toInt().coerceAtLeast(0)
             mmkv!!.putInt("startX", logoParams.x)
             mmkv!!.putInt("startY", logoParams.y)
             windowManager.updateViewLayout(logoRootView, logoParams)
@@ -308,8 +308,16 @@ class FloatLogoService : Service(), View.OnClickListener, View.OnTouchListener {
             }
 
             MotionEvent.ACTION_UP -> {
-                mmkv!!.putInt("startX", logoParams.x)
-                mmkv!!.putInt("startY", logoParams.y)
+                // 边界限制
+                val clampedX = logoParams.x.coerceAtLeast(0)
+                val clampedY = logoParams.y.coerceAtLeast(0)
+                if (clampedX != logoParams.x || clampedY != logoParams.y) {
+                    logoParams.x = clampedX
+                    logoParams.y = clampedY
+                    windowManager.updateViewLayout(logoRootView, logoParams)
+                }
+                mmkv?.putInt("startX", logoParams.x)
+                mmkv?.putInt("startY", logoParams.y)
             }
         }
         return false
